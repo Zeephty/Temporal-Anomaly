@@ -1,6 +1,5 @@
 import pygame
 import os
-from math import acos, degrees
 
 
 def load_image(name, alpha=False):
@@ -21,28 +20,27 @@ class Side(pygame.sprite.Sprite):
         self.rect.x, self.rect.y = pos
 
 
-class Bot(pygame.sprite.Sprite):
-    def __init__(self, current_point, wypoints, *groups):
-        super().__init__(*groups)
+# class Bot(pygame.sprite.Sprite):
+#     def __init__(self, current_point, wypoints, *groups):
+#         super().__init__(*groups)
         
-        self.wypoints = wypoints
-        self.image = all_images["bot"]
+#         self.wypoints = wypoints
+#         self.image = all_images["bot"]
 
-        self.rect = self.image.get_rect()
-        self.mask = pygame.mask.from_surface(self.image)
+#         self.rect = self.image.get_rect()
+#         self.mask = pygame.mask.from_surface(self.image)
 
-        self.current_number = current_point
+#         self.current_number = current_point
 
-        self.rect.x, self.rect.y = self.wypoints[self.current_number]
+#         self.rect.x, self.rect.y = self.wypoints[self.current_number]
     
-    def update(self):
-        ...
+#     def update(self):
+#         ...
 
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, *groups, image=None):
-        if groups:
-            super().__init__(*groups)
+        super().__init__(*groups)
 
         self.image_def = image if image else all_images["player_default"]
         self.image = self.image_def
@@ -56,13 +54,6 @@ class Player(pygame.sprite.Sprite):
         
     def copy_player_move(self, x, y, image):
         return Player((self.rect.x + x, self.rect.y + y), image=image)
-    
-    def tracking_mouse(self, x, y):
-        x_player, y_player = self.rect.x + self.rect.w // 2, self.rect.y + self.rect.h // 2
-
-        self.image = pygame.transform.rotate(self.image_def, 90 + ((-1) ** (y - y_player > 0)) * degrees(acos(((x - x_player) / ((x - x_player) ** 2 + (y - y_player) ** 2) ** 0.5))))
-        self.rect = self.image.get_rect(center = self.image.get_rect(center = (x_player, y_player)).center)
-        self.mask = pygame.mask.from_surface(self.image)
 
 
 class Text:
@@ -95,35 +86,57 @@ class Text:
         self.max_height = y - line_spasing - pos[1]
                     
     def draw_text(self, win):
-        pygame.draw.rect(win, self.bg_color, (self.x - 10, self.y - 10, self.max_width + 20, self.max_height + 20))
+        pygame.draw.rect(win, self.bg_color, (self.x - 5, self.y - 5, self.max_width + 10, self.max_height + 10))
 
         for word in self.text_list:
             win.blit(*word)
 
+    def move(self, x, y):
+        self.text_list = [(word[0], (word[1][0] + x, word[1][1] + y)) for word in self.text_list]
+        self.x += x
+        self.y += y
+            
 
-class List(pygame.sprite.Sprite):
-    def __init__(self, pos, text, *groups):
+
+class TriggerText(pygame.sprite.Sprite):
+    def __init__(self, pos, size, text, *groups):
         super().__init__(*groups)
-
-        self.image = all_images["list"]
-        self.rect = pygame.Rect(pos[0], pos[1], 32, 32)
-
-        self.active = 0
+        self.image = pygame.Surface(size)
+        self.image.fill((255, 255, 255))
+        self.image.set_alpha(50)
+        self.rect = pygame.Rect(pos[0], pos[1], size[0], size[1])
         self.text = text
 
-        self.text = Text((size[0] // 2 - 150, 20), text, max_width=300)
-
+        self.active = 0
+    
     def draw(self, win):
+        win.blit(self.image, (self.rect.x, self.rect.y))
         if self.active:
             self.text.draw_text(win)
-
-    def open(self):
-        if not self.active:
-            self.active = 1
     
-    def close(self):
-        if self.active:
-            self.active = 0
+    def update(self, obj, camera):
+        self.active = pygame.sprite.collide_mask(self, obj)
+        self.image.fill("red" if self.active else (255, 255, 255))
+        camera.apply_mode(self)
+
+    def move(self, x, y):
+        self.text.move(x, y)
+
+
+class Item(pygame.sprite.Sprite):
+    def __init__(self, pos, filename, *groups):
+        super().__init__(*groups)
+        self.image = load_image(filename, 1)
+        self.rect = self.image.get_rect().move(*pos)
+        
+        self.active = 0
+
+
+class Image(pygame.sprite.Sprite):
+    def __init__(self, pos, filename, *groups):
+        super().__init__(*groups)
+        self.image = load_image(filename, 1)
+        self.rect = self.image.get_rect().move(*pos)
 
 
 class FolderFields:
@@ -131,7 +144,7 @@ class FolderFields:
         self.win = win
         self.fields = {}
 
-        self.size = 32
+        self.size = 64
 
         fullname = os.path.join("data", "maps", filename)
 
@@ -145,9 +158,10 @@ class FolderFields:
 
                 all_sprites = pygame.sprite.Group()
                 player_group = pygame.sprite.Group()
-                side_group = pygame.sprite.Group()
-                items_group = pygame.sprite.Group()
+                solids_group = pygame.sprite.Group()
+                triggers_group = pygame.sprite.Group()
                 bot_group = pygame.sprite.Group()
+                background_group = pygame.sprite.Group()
 
                 player = Player(list(map(lambda coordinate: int(coordinate) * self.size, pos.split())), player_group, all_sprites)
 
@@ -160,16 +174,24 @@ class FolderFields:
                     for x in range(count_cage[0]):
                         if s[x][0] == "#":
                             type_side, rotate_side = map(int, s[x][1:].split("."))
-                            Side((self.size * x, self.size * y), side_group, all_sprites, type_side, rotate_side * 90)
+                            Side((self.size * x, self.size * y), solids_group, all_sprites, type_side, rotate_side * 90)
 
                 for _ in range(int(count_commands)):
                     name_com, *args = file.readline().split("||")
-                    if name_com == "list":
-                        List(list(map(lambda x: int(x) * self.size, args[0].split())), args[1], all_sprites, items_group)
-                    if name_com == "bot":
-                        Bot(int(args[0]), list(map(lambda coords: list(map(lambda coord: int(coord) * self.size, coords.split())), args[1].split(", "))), bot_group, all_sprites)
+                    if name_com == "image":
+                        Image(list(map(int, args[0].split())), args[1].strip(), all_sprites, background_group)
+                    elif name_com == "item":
+                        Item(list(map(int, args[0].split())), args[1].strip(), all_sprites, solids_group)
+                    elif name_com == "item+":
+                        x_i, y_i = list(map(int, args[0].split()))
+                        pos_trigger, size_trigger = [list(map(int, i.split())) for i in args[2].split("|")]
+                        pos_text = list(map(int, args[3].split()))
+                        text = Text((x_i + pos_text[0], y_i + pos_text[1]), args[4], font_size=22)
+                        TriggerText((x_i + pos_trigger[0], y_i + pos_trigger[1]), 
+                                    size_trigger, text, all_sprites, triggers_group)
+                        Item((x_i, y_i), args[1].strip(), all_sprites, solids_group)
 
-                self.fields[name] = Field(win, all_sprites, player_group, side_group, items_group, bot_group, player)
+                self.fields[name] = Field(win, all_sprites, player_group, solids_group, triggers_group, background_group, player)
 
     def __call__(self):
         self.draw()
@@ -194,13 +216,13 @@ class FolderFields:
 
 
 class Field:
-    def __init__(self, win, all_sprites, player_group, side_group, items_group, bot_group, player):
+    def __init__(self, win, all_sprites, player_group, solids_group, triggers_group, background_group, player):
         self.win = win
         self.all_sprites = all_sprites
         self.player_group = player_group
-        self.side_group = side_group
-        self.items_group = items_group
-        self.bot_group = bot_group
+        self.solids_group = solids_group
+        self.triggers_group = triggers_group
+        self.background_group = background_group
         self.player = player
         self.camera = Camera()
         
@@ -209,40 +231,26 @@ class Field:
         self.update()
 
     def draw(self):
-        self.items_group.draw(self.win)
-        self.player_group.draw(self.win)
-        self.side_group.draw(self.win)
-        self.bot_group.draw(self.win)
+        self.background_group.draw(self.win)
+        self.solids_group.draw(self.win)
 
-        for sprite in self.items_group.sprites():
-            if isinstance(sprite, List):
-                sprite.draw(self.win)
+        for sprite in self.triggers_group.sprites():
+            sprite.draw(self.win)
+
+        self.player_group.draw(self.win)
+
+        self.triggers_group.update(self.player, self.camera)
 
     def update(self):
         self.camera.update(self.player)
-        self.bot_group.update()
         for sprite in self.all_sprites.sprites():
             self.camera.apply(sprite)
-
-    def open_list(self):
-        for sprite in self.items_group.sprites():
-            if isinstance(sprite, List) and pygame.sprite.collide_rect(self.player, sprite):
-                sprite.open()
-
-    def close_list(self):
-        for sprite in self.items_group.sprites():
-            if isinstance(sprite, List) and not pygame.sprite.collide_rect(self.player, sprite):
-                sprite.close()
     
     def move_player(self, x, y):
-        for sprite in self.side_group:
+        for sprite in self.solids_group:
             if pygame.sprite.collide_mask(sprite, self.player.copy_player_move(x, y, self.player.image)):
                 return
         self.player.move(x, y)
-        self.close_list()
-        
-    def tracking_mouse(self, x, y):
-        self.player.tracking_mouse(x, y)
 
 
 class Camera:
@@ -255,6 +263,9 @@ class Camera:
     def apply(self, obj):
         obj.rect.x += self.dx
         obj.rect.y += self.dy
+
+    def apply_mode(self, obj):
+        obj.move(self.dx, self.dy)
     
     # позиционировать камеру на объекте target
     def update(self, target):
@@ -275,34 +286,20 @@ if __name__ == '__main__':
     all_images = {
         "side_1": load_image("side_1.png", 1),
         "side_2": load_image("side_2.png", 1),
-        "side_3": load_image("side_3.png", 1),
-        "side_4": load_image("side_4.png", 1),
-        "side_5": load_image("side_5.png", 1),
-        "side_6": load_image("side_6.png", 1),
+        "side_3": load_image("glass.png", 1),
         "player_default": load_image("player_default.png", 1),
-        "list": load_image("list.png", 1),
         "bot": load_image("bot.png", 1)
     }
 
-    fps = 60
+    fps = 120
 
     fields = FolderFields(win, "map1.txt")
-
-    # text = Text((100, 100), "")
-
 
     while run:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-            
-            if event.type == pygame.MOUSEMOTION:
-                fields.tracking_mouse(*event.pos)
-            
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_e:
-                    fields.open_close_list()
-        
+                  
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_w]:
@@ -313,10 +310,9 @@ if __name__ == '__main__':
             fields.move_player(-1, 0)
         if keys[pygame.K_d]:
             fields.move_player(1, 0)
-        win.fill((144, 144, 144))
+        win.fill((205, 235, 240))
 
         fields()
-        # text.draw_text(win)
 
         pygame.display.flip()
         clock.tick(fps)

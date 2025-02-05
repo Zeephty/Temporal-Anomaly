@@ -1,6 +1,6 @@
 import os
 import pygame
-from extra import Text, Camera, TriggerText, TriggerTextTP, TriggerTP, ShadowBall
+from extra import Text, Camera, TriggerText, TriggerTextTP, TriggerTP, ShadowBall, TriggerEnd
 from player import Player
 from blocks import Image, Side
 
@@ -71,8 +71,10 @@ class FolderFields:
                                       int(args[5]), args[6].strip(), self, all_sprites, 
                                       triggers_group, color=(255, 212, 44))
                         Image((x_i, y_i), args[1].strip(), all_sprites, solids_group)
-                    elif name_com == "trigger":
-                        ...
+                    elif name_com == "triggerEnd":
+                        pos_trigger, size_trigger = [list(map(int, i.split())) for i in args[0].split("|")]
+                        TriggerEnd(pos_trigger, size_trigger, end, args[1], args[2].strip(), triggers_group, 
+                                   all_sprites, color=(255, 212, 84))
                     elif name_com == "triggerTP":
                         pos_trigger, size_trigger = [list(map(int, i.split())) for i in args[0].split("|")]
                         TriggerTP((pos_trigger[0], pos_trigger[1]), size_trigger, 
@@ -80,7 +82,7 @@ class FolderFields:
                                   triggers_group, color=(255, 212, 84))
                     elif name_com == "shadowball":
                         ShadowBall(list(map(int, args[0].split())), list(map(int, args[1].split())), 
-                                   end, all_sprites, showdown_group)
+                                   end, args[2].strip(), all_sprites, showdown_group)
 
                 self.fields[name] = Field(win, all_sprites, player_group, solids_group, triggers_group, 
                                           background_group, showdown_group, player)

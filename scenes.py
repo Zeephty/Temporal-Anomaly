@@ -1,5 +1,5 @@
 import pygame
-from extra import SeekerPos, Button, TimeLimit, End, Music
+from extra import SeekerPos, Button, TimeLimit, End, Music, FolderAchevement
 from gamef import FolderFields
 
 
@@ -202,6 +202,8 @@ class MainMenu(EmptyScene):
     def __init__(self, funct_set_scene):
         size = pygame.display.Info().current_w, pygame.display.Info().current_h
 
+        self.folder_achivement = FolderAchevement((10, 10), "achievement.txt")
+
         self.button_play = Button((size[0] - 300, size[1] - 300), "Играть", 220, font_size=90)
         self.button_play.connect(self.play_click)
 
@@ -214,6 +216,10 @@ class MainMenu(EmptyScene):
     def draw(self, win):
         self.button_play.draw(win)
         self.button_exit.draw(win)
+        self.folder_achivement.draw(win)
+
+    def update(self):
+        self.folder_achivement.update()
 
     # Отслеживаем передвижение мыши
     def mouse_motion(self, x, y):

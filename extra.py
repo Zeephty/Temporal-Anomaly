@@ -1,6 +1,32 @@
 import pygame
 import random
-from additionally import load_music
+from additionally import load_music, load_achievement, rep_achievement
+
+
+# Класс для работы с достижениями
+class FolderAchevement:
+    # Задаем начальные параметры
+    def __init__(self, pos, name):
+        self.name = name
+        self.achievement = load_achievement(name)
+        self.list_achievement = list(map(str.strip, self.achievement))
+        self.pos = pos
+        self.list_text = []
+        for i, text in enumerate(self.list_achievement):
+            self.list_text += [Text((self.pos[0], self.pos[1] + 50 * i), text, 600, font_size=40)]
+
+    # Отрисовка
+    def draw(self, win):
+        for text in self.list_text:
+            text.draw_text(win)
+
+    # Обновление
+    def update(self):
+        self.achievement = load_achievement(self.name)
+        self.list_achievement = list(map(str.strip, self.achievement))
+        self.list_text = []
+        for i, text in enumerate(self.list_achievement[-6:]):
+            self.list_text += [Text((self.pos[0], self.pos[1] + 50 * i), text, 600, font_size=40)]
 
 
 # Класс для работы с музыкой
@@ -57,19 +83,20 @@ class End:
 # Класс для работы с сумашедшими теньками
 class ShadowBall(pygame.sprite.Sprite):
     # Задаем начальные параметры
-    def __init__(self, pos, size, end, *groups):
+    def __init__(self, pos, size, end, text_achi, *groups):
         super().__init__(*groups)
         self.image = pygame.Surface(size)
         self.image.fill((255, 255, 255))
         self.image.set_alpha(150)
         self.end = end
+        self.text_achi = text_achi
         self.rect = pygame.Rect(pos[0], pos[1], size[0], size[1])
         self.vect = [random.choice([-1, 1]), random.choice([-1, 1])]
         self.v = [random.randrange(1, 20) / 5, random.randint(1, 20) / 5]
 
     # Копируем объект со смещением
     def copy_shadowball_move(self, pos):
-        return ShadowBall((self.rect.x + pos[0], self.rect.y + pos[1]), self.rect.size, None)
+        return ShadowBall((self.rect.x + pos[0], self.rect.y + pos[1]), self.rect.size, None, "")
 
     # Обновляем
     def update(self, player, solids_group):
@@ -77,6 +104,7 @@ class ShadowBall(pygame.sprite.Sprite):
             self.end.set_text(
                 "Вы попали в тень временной аномалии и вас вернуло обратно..\n[нажмите пробел чтобы продолжить]"
                 )
+            rep_achievement("achievement.txt", self.text_achi)
             self.end.set_active(1)
         if pygame.sprite.spritecollideany(
                 self.copy_shadowball_move([self.vect[0] * self.v[0], self.vect[1] * self.v[1]]), 
@@ -177,6 +205,26 @@ class Trigger(pygame.sprite.Sprite):
     # Перемещаем
     def move(self, x, y):
         ...
+
+
+# Класс для работы с триггерами которые завершают игру
+class TriggerEnd(Trigger):
+    # Задаем начальные параметры
+    def __init__(self, pos, size, end, text_end, text_achi, *groups, color=(255, 255, 255)):
+        super().__init__(pos, size, *groups, color=color)
+        self.end = end
+        self.text_end = text_end
+        self.text_achi = text_achi
+    
+    # Обновляем
+    def update(self, obj, camera):
+        self.active = pygame.sprite.collide_mask(self, obj)
+        self.image.fill("red" if self.active else self.color)
+        camera.apply_mode(self)
+        if self.active:
+            self.end.set_text(self.text_end)
+            rep_achievement("achievement.txt", self.text_achi)
+            self.end.set_active(1)
 
 
 # Класс для работы с триггерами которые ведут к другому месту
